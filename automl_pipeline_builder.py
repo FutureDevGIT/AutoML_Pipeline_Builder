@@ -16,13 +16,12 @@ from xgboost import XGBClassifier
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-import os
 
 st.set_page_config(page_title="AutoML Pipeline Builder", layout="wide")
 st.title("🧠 AutoML Pipeline Builder")
 st.markdown("Upload a classification dataset, choose a model, and let the pipeline handle everything from preprocessing to evaluation.")
 
-# Sidebar setup
+# Sidebar
 st.sidebar.header("📁 Upload Your Dataset")
 file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 
@@ -42,27 +41,29 @@ if file:
     target_col = st.selectbox("🎯 Select Target Column", df.columns)
 
     if target_col:
-        # Encode categorical target
         y = df[target_col]
         X = df.drop(columns=[target_col])
 
-        # Encode categoricals
+        # Encode categorical features
         for col in X.select_dtypes(include='object').columns:
             le = LabelEncoder()
             X[col] = le.fit_transform(X[col].astype(str))
 
-        if y.dtype == 'object':
+        # Encode target if needed
+        if y.dtype == "object":
             y = LabelEncoder().fit_transform(y)
 
         # Train-test split
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.3, stratify=y, random_state=42
+        )
 
         # Scale features
         scaler = StandardScaler()
         X_train = scaler.fit_transform(X_train)
         X_test = scaler.transform(X_test)
 
-        # Select model
+        # Model selection
         if model_choice == "Logistic Regression":
             model = LogisticRegression(max_iter=1000)
         elif model_choice == "Random Forest":
@@ -74,33 +75,66 @@ if file:
         elif model_choice == "Support Vector Machine":
             model = SVC(probability=True)
 
-        # Train model
+        # Train
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
-        y_proba = model.predict_proba(X_test)[:, 1]
 
+        # -----------------------------
+        #   SAFE PROBABILITY LOGIC
+        # -----------------------------
+        proba = model.predict_proba(X_test)
+        unique_classes = np.unique(y_test)
+
+        st.subheader("📈 ROC AUC Score")
+
+        if len(unique_classes) == 2:
+            # Binary classification
+            y_proba = proba[:, 1]
+            roc_score = roc_auc_score(y_test, y_proba)
+            st.success(f"ROC AUC (Binary): {roc_score:.4f}")
+
+        else:
+            # Multiclass classification
+            try:
+                roc_score = roc_auc_score(
+                    y_test,
+                    proba,
+                    multi_class="ovr",
+                    average="macro"
+                )
+                st.success(f"ROC AUC (Multiclass OVR/Macro): {roc_score:.4f}")
+                st.info("ℹ️ Multiclass dataset detected — using One-vs-Rest Macro AUC.")
+            except Exception as e:
+                st.error(f"ROC AUC could not be computed for multiclass: {e}")
+
+        # -------------------------------------
+        # Classification Report
+        # -------------------------------------
         st.subheader("📊 Classification Report")
         st.text(classification_report(y_test, y_pred))
 
+        # -------------------------------------
+        # Confusion Matrix
+        # -------------------------------------
         st.subheader("🧩 Confusion Matrix")
         fig, ax = plt.subplots()
         sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Blues', ax=ax)
         st.pyplot(fig)
 
-        st.subheader("📈 ROC AUC Score")
-        roc_score = roc_auc_score(y_test, y_proba)
-        st.success(f"ROC AUC: {roc_score:.4f}")
-
-        # Export model and scaler
+        # -------------------------------------
+        # Export Model + Scaler
+        # -------------------------------------
         if st.button("📤 Export Trained Model"):
             joblib.dump(model, "trained_model.pkl")
             joblib.dump(scaler, "scaler.pkl")
             joblib.dump(X.columns.tolist(), "feature_order.pkl")
-            st.success("Model, scaler, and feature order exported as .pkl files!")
+            st.success("Model, scaler, and feature order exported successfully!")
 
-        # Upload your own test data
+        # -------------------------------------
+        # Prediction on new uploaded data
+        # -------------------------------------
         st.subheader("📉 Predict on New Data")
-        new_file = st.file_uploader("Upload New Data CSV (matching columns)", type=["csv"], key="new_data")
+        new_file = st.file_uploader("Upload New Data CSV (same columns)", type=["csv"], key="new_data")
 
         if new_file:
             new_data = pd.read_csv(new_file)
@@ -109,13 +143,19 @@ if file:
 
             try:
                 feature_order = joblib.load("feature_order.pkl")
-                new_data = new_data[feature_order]  # ensure correct column order
-                new_data_scaled = joblib.load("scaler.pkl").transform(new_data)
+                new_data = new_data[feature_order]
+
+                scaler = joblib.load("scaler.pkl")
                 model = joblib.load("trained_model.pkl")
-                predictions = model.predict(new_data_scaled)
+
+                new_scaled = scaler.transform(new_data)
+                predictions = model.predict(new_scaled)
+
                 st.write("✅ Predictions:")
                 st.write(predictions)
+
             except Exception as e:
                 st.error(f"❌ Prediction failed: {e}")
+
 else:
     st.warning("Please upload a CSV file to begin.")
