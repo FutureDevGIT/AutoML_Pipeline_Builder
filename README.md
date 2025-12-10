@@ -3,6 +3,9 @@
 A user-friendly Streamlit application that allows anyone to train and evaluate machine learning models on **any classification dataset** — no coding required.
 
 ---
+## 🖼️ App Preview
+![Streamlit App Screenshot](screenshot.png)
+---
 
 ## 🚀 Features
 
@@ -104,10 +107,6 @@ streamlit run app.py
 ## 🛡 Contributing
 - Pull requests are welcome!
 - For major changes, please open an issue first.
----
-
-## 🖼️ App Preview
-![Streamlit App Screenshot](screenshot.png)
 ---
 
 ## 📚 Useful Concepts Covered
