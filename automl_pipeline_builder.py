@@ -26,7 +26,7 @@ import seaborn as sns
 
 # ---- Streamlit configuration ----
 st.set_page_config(page_title="AutoML Pipeline Builder — Pro", layout="wide")
-st.title("🧠 AutoML Pipeline Builder — Professional")
+st.title("🧠 AutoML Pipeline Builder")
 st.markdown(
     """
 Upload a classification dataset, choose options and let the app train, evaluate, and export a production-ready model + report.
